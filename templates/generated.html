@@ -1,6 +1,6 @@
 <html lang="en">
 <head>
-    <title>{{.Title}}</title>
+    <title>{{.Route.Meta.Title}}</title>
 
     <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="/static/css/blocks.css">
@@ -17,7 +17,7 @@
         </button>
         <div class="options-menu__content">
             <a class="options-menu__content__entry" href="/cms/pages">All routes</a>
-            <a class="options-menu__content__entry" href="/cms/editor?page={{.URL}}">Edit this page</a>
+            <a class="options-menu__content__entry" href="/cms/editor?page={{.Route.ID}}">Edit this page</a>
         </div>
     </div>
 

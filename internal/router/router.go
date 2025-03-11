@@ -4,15 +4,18 @@ import (
 	"errors"
 
 	"github.com/Fluffy-Bean/cms/internal/blocks"
+	"github.com/google/uuid"
 )
 
 type Route struct {
-	Meta struct {
+	ID         string
+	Path       string
+	TemplateID string
+	Meta       struct {
 		Title       string
 		Description string
 	}
-	TemplateID string
-	Blocks     []struct {
+	Blocks []struct {
 		ID    string
 		Block blocks.Block
 	}
@@ -28,28 +31,48 @@ func New() Router {
 	}
 }
 
-func (r *Router) RegisterRoute(path string, route Route) error {
-	if path == "" {
-		return errors.New("empty path")
-	}
-	if _, ok := r.Store[path]; ok {
-		return errors.New("route already exists")
+func (router *Router) NewRoute() (Route, error) {
+	id := uuid.New().String()
+
+	router.Store[id] = Route{
+		ID: id,
 	}
 
-	r.Store[path] = route
+	return router.Store[id], nil
+}
+
+func (router *Router) UpdateRoute(route Route) error {
+	if _, ok := router.Store[route.ID]; !ok {
+		return errors.New("cannot find route")
+	}
+
+	for _, r := range router.Store {
+		if r.Path == route.Path && r.ID != route.ID {
+			return errors.New("cannot update route")
+		}
+	}
+
+	router.Store[route.ID] = route
 
 	return nil
 }
 
-func (r *Router) FindRoute(path string) (Route, error) {
-	route, ok := r.Store[path]
-	if !ok {
-		return Route{}, errors.New("route not found")
+func (router *Router) GetRoute(pathOrID string) (Route, error) {
+	if route, ok := router.Store[pathOrID]; ok {
+		return route, nil
 	}
 
-	return route, nil
+	for _, route := range router.Store {
+		if route.Path == pathOrID {
+			return route, nil
+		}
+	}
+
+	return Route{}, errors.New("route not found")
 }
 
-func (r *Router) RemoveRoute(path string) {
-	delete(r.Store, path)
+func (router *Router) DeleteRoute(route Route) error {
+	delete(router.Store, route.ID)
+
+	return nil
 }

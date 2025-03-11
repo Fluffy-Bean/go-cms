@@ -15,14 +15,14 @@
         <th>Description</th>
         <th>Options</th>
     </tr>
-    {{range $route, $options := .Routes}}
+    {{range .Routes}}
         <tr>
-            <td><a href="{{$route}}" class="button button--text">{{$route}}</a></td>
-            <td>{{$options.Meta.Title}}</td>
-            <td>{{$options.Meta.Description}}</td>
+            <td><a href="{{.Path}}" class="button button--text">{{.Path}}</a></td>
+            <td>{{.Meta.Title}}</td>
+            <td>{{.Meta.Description}}</td>
             <td style="display: flex; align-items: center; justify-content: center">
-                <a href="/cms/editor?page={{$route}}" class="button button--text" style="margin-right: 14px">Edit</a>
-                <a href="/api/v1/page:delete?page={{$route}}" class="button button--text">Delete</a>
+                <a href="/cms/editor?page={{.ID}}" class="button button--text" style="margin-right: 14px">Edit</a>
+                <a href="/api/v1/page:delete?page={{.ID}}" class="button button--text">Delete</a>
             </td>
         </tr>
     {{end}}

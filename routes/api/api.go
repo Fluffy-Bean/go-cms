@@ -33,8 +33,7 @@ func routePageCreate(h handler.Handler) http.HandlerFunc {
 			return
 		}
 
-		pageEditing := r.URL.Query().Get("editing")
-
+		pageID := r.URL.Query().Get("id")
 		pageURL := ""
 		pageTitle := ""
 		pageDescription := ""
@@ -72,33 +71,26 @@ func routePageCreate(h handler.Handler) http.HandlerFunc {
 
 		if pageURL == "" {
 			fmt.Println("missing url")
-
 			http.Redirect(w, r, "/cms/editor?status=failure", http.StatusFound)
 
 			return
 		}
 
-		if pageEditing == "yeah" {
-			page, err := h.Router.FindRoute(pageURL)
+		var route router.Route
+		route, err = h.Router.GetRoute(pageID)
+		if err != nil {
+			route, err = h.Router.NewRoute()
 			if err != nil {
 				fmt.Println(err)
-
 				http.Redirect(w, r, "/cms/editor?status=failure", http.StatusFound)
 
 				return
 			}
-
-			err = os.Remove(h.DataPath + "/routes/" + page.TemplateID)
-			if err != nil {
-				fmt.Println(err)
-
-				http.Redirect(w, r, "/cms/pages?status=failure", http.StatusFound)
-
-				return
-			}
-
-			h.Router.RemoveRoute(pageURL)
 		}
+
+		route.Path = pageURL
+		route.Meta.Title = pageTitle
+		route.Meta.Description = pageDescription
 
 		pageHTML := make([]string, len(pageFormData))
 		pageBlocks := make([]struct {
@@ -136,9 +128,19 @@ func routePageCreate(h handler.Handler) http.HandlerFunc {
 			})
 		}
 
-		fileName := uuid.New().String() + ".html"
+		if route.TemplateID != "" {
+			err = os.Remove(h.DataPath + "/routes/" + route.TemplateID)
+			if err != nil {
+				fmt.Println(err)
+				http.Redirect(w, r, "/cms/pages?status=failure", http.StatusFound)
 
-		file, err := os.Create(h.DataPath + "/routes/" + fileName)
+				return
+			}
+		}
+
+		newTemplateID := uuid.New().String() + ".html"
+
+		templateFile, err := os.Create(h.DataPath + "/routes/" + newTemplateID)
 		if err != nil {
 			fmt.Println(err)
 			http.Redirect(w, r, "/cms/editor?status=failure", http.StatusFound)
@@ -154,10 +156,10 @@ func routePageCreate(h handler.Handler) http.HandlerFunc {
 			return
 		}
 
-		err = templ.Execute(file, map[string]any{
+		err = templ.Execute(templateFile, map[string]any{
 			"Title":       pageTitle,
 			"Description": pageDescription,
-			"Store":       pageHTML,
+			"Blocks":      pageHTML,
 		})
 		if err != nil {
 			fmt.Println(err)
@@ -166,30 +168,18 @@ func routePageCreate(h handler.Handler) http.HandlerFunc {
 			return
 		}
 
-		newRoute := router.Route{
-			Meta: struct {
-				Title       string
-				Description string
-			}{
-				Title:       pageTitle,
-				Description: pageDescription,
-			},
-			TemplateID: fileName,
-			Blocks:     pageBlocks,
-		}
+		route.TemplateID = newTemplateID
+		route.Blocks = pageBlocks
 
-		err = h.Router.RegisterRoute(pageURL, newRoute)
+		err = h.Router.UpdateRoute(route)
 		if err != nil {
+			fmt.Println(err)
 			http.Redirect(w, r, "/cms/editor?status=failure", http.StatusFound)
 
 			return
 		}
 
-		if pageEditing == "yeah" {
-			http.Redirect(w, r, "/cms/editor?page="+pageURL+"&status=success", http.StatusFound)
-		} else {
-			http.Redirect(w, r, "/cms/editor?status=success", http.StatusFound)
-		}
+		http.Redirect(w, r, "/cms/pages?status=success", http.StatusFound)
 	}
 }
 
@@ -197,7 +187,7 @@ func routePageDelete(h handler.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		pageURL := r.URL.Query().Get("page")
 
-		page, err := h.Router.FindRoute(pageURL)
+		page, err := h.Router.GetRoute(pageURL)
 		if err != nil {
 			http.NotFound(w, r)
 
@@ -213,7 +203,7 @@ func routePageDelete(h handler.Handler) http.HandlerFunc {
 			return
 		}
 
-		h.Router.RemoveRoute(pageURL)
+		h.Router.DeleteRoute(page)
 
 		http.Redirect(w, r, "/cms/pages?status=success", http.StatusFound)
 	}

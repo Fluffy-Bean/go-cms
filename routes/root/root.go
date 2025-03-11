@@ -14,7 +14,7 @@ func RegisterRootRoutes(mux *http.ServeMux, h handler.Handler) {
 
 func routeRootHandler(h handler.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		route, err := h.Router.FindRoute(r.URL.Path)
+		route, err := h.Router.GetRoute(r.URL.Path)
 		if err != nil {
 			http.NotFound(w, r)
 
@@ -35,9 +35,7 @@ func routeRootHandler(h handler.Handler) http.HandlerFunc {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 		err = templ.Execute(w, map[string]any{
-			"URL":         r.URL.Path,
-			"Title":       route.Meta.Title,
-			"Description": route.Meta.Description,
+			"Route": route,
 		})
 		if err != nil {
 			fmt.Println(err)

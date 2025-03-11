@@ -22,27 +22,21 @@ func RegisterCMSRoutes(mux *http.ServeMux, h handler.Handler) {
 }
 
 func routeStatic(h handler.Handler) http.HandlerFunc {
-	css, _ := os.ReadFile("./static/css/styles.css")
-	blocks, _ := os.ReadFile("./static/css/blocks.css")
-	js, _ := os.ReadFile("./static/js/dom.js")
+	cssStyles, _ := os.ReadFile("./static/css/styles.css")
+	cssBlocks, _ := os.ReadFile("./static/css/blocks.css")
+	jsDOM, _ := os.ReadFile("./static/js/dom.js")
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/static/css/styles.css":
 			w.Header().Set("Content-Type", "text/css; charset=utf-8")
-			w.Write(css)
-
-			return
+			w.Write(cssStyles)
 		case "/static/css/blocks.css":
 			w.Header().Set("Content-Type", "text/css; charset=utf-8")
-			w.Write(blocks)
-
-			return
+			w.Write(cssBlocks)
 		case "/static/js/dom.js":
 			w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
-			w.Write(js)
-
-			return
+			w.Write(jsDOM)
 		default:
 			http.NotFound(w, r)
 		}
@@ -97,14 +91,14 @@ func routeEditor(h handler.Handler) http.HandlerFunc {
 			return
 		}
 
+		pageID := ""
 		pageUrl := ""
 		pageTitle := ""
 		pageDescription := ""
-		pageNew := true
+		pageBlocks := make([]blocks.FormData, 0)
 
-		var form []blocks.FormData
 		if page != "" {
-			pageData, err := h.Router.FindRoute(page)
+			route, err := h.Router.GetRoute(page)
 			if err != nil {
 				fmt.Println(err)
 
@@ -113,12 +107,12 @@ func routeEditor(h handler.Handler) http.HandlerFunc {
 				return
 			}
 
-			pageUrl = page
-			pageTitle = pageData.Meta.Title
-			pageDescription = pageData.Meta.Description
-			pageNew = false
+			pageID = route.ID
+			pageUrl = route.Path
+			pageTitle = route.Meta.Title
+			pageDescription = route.Meta.Description
 
-			for index, block := range pageData.Blocks {
+			for index, block := range route.Blocks {
 				formData, err := h.Blocks.GetFormDataByType(block.Block)
 				if err != nil {
 					fmt.Println(err)
@@ -128,11 +122,11 @@ func routeEditor(h handler.Handler) http.HandlerFunc {
 				formData.Index = index
 				formData.ID = block.ID
 
-				form = append(form, formData)
+				pageBlocks = append(pageBlocks, formData)
 			}
 		}
 
-		indexOffset := len(form)
+		indexOffset := len(pageBlocks)
 		if slots != "" {
 			for index, block := range strings.Split(slots, ",") {
 				formData, err := h.Blocks.GetFormDataByID(block)
@@ -143,19 +137,19 @@ func routeEditor(h handler.Handler) http.HandlerFunc {
 				}
 				formData.Index = index + indexOffset
 
-				form = append(form, formData)
+				pageBlocks = append(pageBlocks, formData)
 			}
 		}
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 		err = templ.Execute(w, map[string]any{
-			"NewPage":     pageNew,
-			"URL":         pageUrl,
-			"Title":       pageTitle,
-			"Description": pageDescription,
-			"Message":     message,
-			"Store":       form,
+			"PageID":          pageID,
+			"PageURL":         pageUrl,
+			"PageTitle":       pageTitle,
+			"PageDescription": pageDescription,
+			"Message":         message,
+			"Blocks":          pageBlocks,
 		})
 		if err != nil {
 			fmt.Println(err)
