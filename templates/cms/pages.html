@@ -1,0 +1,30 @@
+{{template "cms.html" .}}
+
+{{define "content"}}
+<div class="main__header">
+    <h1>Pages</h1>
+    <a href="/cms/editor" class="button">Create page</a>
+</div>
+
+<hr class="divider">
+
+<table class="table">
+    <tr>
+        <th>Link</th>
+        <th>Title</th>
+        <th>Description</th>
+        <th>Options</th>
+    </tr>
+    {{range $route, $options := .Routes}}
+        <tr>
+            <td><a href="{{$route}}" class="button button--text">{{$route}}</a></td>
+            <td>{{$options.Meta.Title}}</td>
+            <td>{{$options.Meta.Description}}</td>
+            <td style="display: flex; align-items: center; justify-content: center">
+                <a href="/cms/editor?page={{$route}}" class="button button--text" style="margin-right: 14px">Edit</a>
+                <a href="/api/v1/page:delete?page={{$route}}" class="button button--text">Delete</a>
+            </td>
+        </tr>
+    {{end}}
+</table>
+{{end}}

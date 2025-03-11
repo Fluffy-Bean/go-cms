@@ -1,0 +1,30 @@
+.block__text {
+    margin: 16px 0;
+}
+
+.block__code {
+    margin: 16px 0;
+    padding: 16px;
+
+    background: rgb(var(--secondary));
+    color: rgb(var(--primary));
+
+    border-radius: 3px;
+
+    pre {
+        margin: 0;
+    }
+}
+
+.block__image {
+    margin: 16px 0;
+
+    img {
+        max-width: 100%;
+        max-height: 500px;
+
+        display: block;
+
+        border-radius: 3px;
+    }
+}
