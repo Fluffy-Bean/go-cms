@@ -7,21 +7,21 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/Fluffy-Bean/cms/app"
 	"github.com/Fluffy-Bean/cms/internal/blocks"
+	"github.com/Fluffy-Bean/cms/internal/handler"
 )
 
-func RegisterCMSRoutes(mux *http.ServeMux, handler app.App) {
-	mux.HandleFunc("/static/", routeStatic(handler))
+func RegisterCMSRoutes(mux *http.ServeMux, h handler.Handler) {
+	mux.HandleFunc("/static/", routeStatic(h))
 
-	mux.HandleFunc("/cms", routeRoot(handler))
-	mux.HandleFunc("/cms/editor", routeEditor(handler))
-	mux.HandleFunc("/cms/pages", routePages(handler))
-	mux.HandleFunc("/cms/profile", routeProfile(handler))
-	mux.HandleFunc("/cms/files", routeFiles(handler))
+	mux.HandleFunc("/cms", routeRoot(h))
+	mux.HandleFunc("/cms/editor", routeEditor(h))
+	mux.HandleFunc("/cms/pages", routePages(h))
+	mux.HandleFunc("/cms/profile", routeProfile(h))
+	mux.HandleFunc("/cms/files", routeFiles(h))
 }
 
-func routeStatic(handler app.App) http.HandlerFunc {
+func routeStatic(h handler.Handler) http.HandlerFunc {
 	css, _ := os.ReadFile("./static/css/styles.css")
 	blocks, _ := os.ReadFile("./static/css/blocks.css")
 	js, _ := os.ReadFile("./static/js/dom.js")
@@ -49,11 +49,11 @@ func routeStatic(handler app.App) http.HandlerFunc {
 	}
 }
 
-func routeRoot(handler app.App) http.HandlerFunc {
+func routeRoot(h handler.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		templ, err := template.ParseFiles(
-			handler.TemplatesPath+"/cms/root.html",
-			handler.TemplatesPath+"/cms.html",
+			h.TemplatesPath+"/cms/root.html",
+			h.TemplatesPath+"/cms.html",
 		)
 		if err != nil {
 			fmt.Println(err)
@@ -72,7 +72,7 @@ func routeRoot(handler app.App) http.HandlerFunc {
 	}
 }
 
-func routeEditor(handler app.App) http.HandlerFunc {
+func routeEditor(h handler.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		status := r.URL.Query().Get("status")
 		page := r.URL.Query().Get("page")
@@ -87,8 +87,8 @@ func routeEditor(handler app.App) http.HandlerFunc {
 		}
 
 		templ, err := template.ParseFiles(
-			handler.TemplatesPath+"/cms/editor.html",
-			handler.TemplatesPath+"/cms.html",
+			h.TemplatesPath+"/cms/editor.html",
+			h.TemplatesPath+"/cms.html",
 		)
 		if err != nil {
 			fmt.Println(err)
@@ -104,7 +104,7 @@ func routeEditor(handler app.App) http.HandlerFunc {
 
 		var form []blocks.FormData
 		if page != "" {
-			pageData, err := handler.Router.FindRoute(page)
+			pageData, err := h.Router.FindRoute(page)
 			if err != nil {
 				fmt.Println(err)
 
@@ -119,7 +119,7 @@ func routeEditor(handler app.App) http.HandlerFunc {
 			pageNew = false
 
 			for index, block := range pageData.Blocks {
-				formData, err := handler.Blocks.GetFormDataByType(block.Block)
+				formData, err := h.Blocks.GetFormDataByType(block.Block)
 				if err != nil {
 					fmt.Println(err)
 
@@ -135,7 +135,7 @@ func routeEditor(handler app.App) http.HandlerFunc {
 		indexOffset := len(form)
 		if slots != "" {
 			for index, block := range strings.Split(slots, ",") {
-				formData, err := handler.Blocks.GetFormDataByID(block)
+				formData, err := h.Blocks.GetFormDataByID(block)
 				if err != nil {
 					fmt.Println(err)
 
@@ -155,7 +155,7 @@ func routeEditor(handler app.App) http.HandlerFunc {
 			"Title":       pageTitle,
 			"Description": pageDescription,
 			"Message":     message,
-			"Blocks":      form,
+			"Store":       form,
 		})
 		if err != nil {
 			fmt.Println(err)
@@ -165,7 +165,7 @@ func routeEditor(handler app.App) http.HandlerFunc {
 	}
 }
 
-func routePages(handler app.App) http.HandlerFunc {
+func routePages(h handler.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		status := r.URL.Query().Get("status")
 
@@ -178,8 +178,8 @@ func routePages(handler app.App) http.HandlerFunc {
 		}
 
 		templ, err := template.ParseFiles(
-			handler.TemplatesPath+"/cms/pages.html",
-			handler.TemplatesPath+"/cms.html",
+			h.TemplatesPath+"/cms/pages.html",
+			h.TemplatesPath+"/cms.html",
 		)
 		if err != nil {
 			fmt.Println(err)
@@ -192,7 +192,7 @@ func routePages(handler app.App) http.HandlerFunc {
 
 		err = templ.Execute(w, map[string]any{
 			"Message": message,
-			"Routes":  handler.Router.Routes,
+			"Routes":  h.Router.Store,
 		})
 		if err != nil {
 			fmt.Println(err)
@@ -201,11 +201,11 @@ func routePages(handler app.App) http.HandlerFunc {
 	}
 }
 
-func routeProfile(handler app.App) http.HandlerFunc {
+func routeProfile(h handler.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		templ, err := template.ParseFiles(
-			handler.TemplatesPath+"/cms/profile.html",
-			handler.TemplatesPath+"/cms.html",
+			h.TemplatesPath+"/cms/profile.html",
+			h.TemplatesPath+"/cms.html",
 		)
 		if err != nil {
 			fmt.Println(err)
@@ -224,11 +224,11 @@ func routeProfile(handler app.App) http.HandlerFunc {
 	}
 }
 
-func routeFiles(handler app.App) http.HandlerFunc {
+func routeFiles(h handler.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		templ, err := template.ParseFiles(
-			handler.TemplatesPath+"/cms/files.html",
-			handler.TemplatesPath+"/cms.html",
+			h.TemplatesPath+"/cms/files.html",
+			h.TemplatesPath+"/cms.html",
 		)
 		if err != nil {
 			fmt.Println(err)

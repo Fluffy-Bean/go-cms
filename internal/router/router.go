@@ -19,12 +19,12 @@ type Route struct {
 }
 
 type Router struct {
-	Routes map[string]Route
+	Store map[string]Route
 }
 
 func New() Router {
 	return Router{
-		Routes: map[string]Route{},
+		Store: map[string]Route{},
 	}
 }
 
@@ -32,17 +32,17 @@ func (r *Router) RegisterRoute(path string, route Route) error {
 	if path == "" {
 		return errors.New("empty path")
 	}
-	if _, ok := r.Routes[path]; ok {
+	if _, ok := r.Store[path]; ok {
 		return errors.New("route already exists")
 	}
 
-	r.Routes[path] = route
+	r.Store[path] = route
 
 	return nil
 }
 
 func (r *Router) FindRoute(path string) (Route, error) {
-	route, ok := r.Routes[path]
+	route, ok := r.Store[path]
 	if !ok {
 		return Route{}, errors.New("route not found")
 	}
@@ -51,5 +51,5 @@ func (r *Router) FindRoute(path string) (Route, error) {
 }
 
 func (r *Router) RemoveRoute(path string) {
-	delete(r.Routes, path)
+	delete(r.Store, path)
 }

@@ -5,16 +5,16 @@ import (
 	"html/template"
 	"net/http"
 
-	"github.com/Fluffy-Bean/cms/app"
+	"github.com/Fluffy-Bean/cms/internal/handler"
 )
 
-func RegisterRootRoutes(mux *http.ServeMux, handler app.App) {
-	mux.HandleFunc("/", routeRootHandler(handler))
+func RegisterRootRoutes(mux *http.ServeMux, h handler.Handler) {
+	mux.HandleFunc("/", routeRootHandler(h))
 }
 
-func routeRootHandler(handler app.App) http.HandlerFunc {
+func routeRootHandler(h handler.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		route, err := handler.Router.FindRoute(r.URL.Path)
+		route, err := h.Router.FindRoute(r.URL.Path)
 		if err != nil {
 			http.NotFound(w, r)
 
@@ -22,8 +22,8 @@ func routeRootHandler(handler app.App) http.HandlerFunc {
 		}
 
 		templ, err := template.ParseFiles(
-			handler.DataPath+"/routes/"+route.TemplateID,
-			handler.TemplatesPath+"/generated.html",
+			h.DataPath+"/routes/"+route.TemplateID,
+			h.TemplatesPath+"/generated.html",
 		)
 		if err != nil {
 			fmt.Println(err)

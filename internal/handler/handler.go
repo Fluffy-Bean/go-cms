@@ -1,11 +1,11 @@
-package app
+package handler
 
 import (
 	"github.com/Fluffy-Bean/cms/internal/blocks"
 	"github.com/Fluffy-Bean/cms/internal/router"
 )
 
-type App struct {
+type Handler struct {
 	TemplatesPath string
 	DataPath      string
 	Router        router.Router

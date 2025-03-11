@@ -22,35 +22,35 @@ type FormData struct {
 }
 
 type Blocks struct {
-	Blocks map[string]Block
+	Store map[string]Block
 }
 
 func New() Blocks {
 	return Blocks{
-		Blocks: map[string]Block{},
+		Store: map[string]Block{},
 	}
 }
 
 func (b *Blocks) RegisterBlock(id string, block Block) error {
-	if _, ok := b.Blocks[id]; ok {
+	if _, ok := b.Store[id]; ok {
 		return errors.New("block already exists")
 	}
 
-	b.Blocks[id] = block
+	b.Store[id] = block
 
 	return nil
 }
 
 func (b *Blocks) GetRegisteredBlocks() []string {
 	var blocks []string
-	for id := range b.Blocks {
+	for id := range b.Store {
 		blocks = append(blocks, id)
 	}
 	return blocks
 }
 
 func (b *Blocks) GetRegisteredBlock(id string) (Block, error) {
-	block, ok := b.Blocks[id]
+	block, ok := b.Store[id]
 	if !ok {
 		return nil, errors.New("block not found")
 	}
@@ -69,7 +69,7 @@ func (b *Blocks) GetFormDataByID(id string) (FormData, error) {
 		}, 0),
 	}
 
-	block, ok := b.Blocks[id]
+	block, ok := b.Store[id]
 	if !ok {
 		return form, errors.New("block not found")
 	}
