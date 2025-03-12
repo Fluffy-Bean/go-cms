@@ -1,3 +1,12 @@
+.block__header {
+    h1 {
+        margin-bottom: 8px;
+    }
+    p {
+        margin: 8px 0;
+    }
+}
+
 .block__text {
     margin: 16px 0;
 }

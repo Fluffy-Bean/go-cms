@@ -11,7 +11,7 @@ import (
 	"github.com/Fluffy-Bean/cms/internal/handler"
 )
 
-func RegisterCMSRoutes(mux *http.ServeMux, h handler.Handler) {
+func RegisterCMSRoutes(mux *http.ServeMux, h *handler.Handler) {
 	mux.HandleFunc("/static/", routeStatic(h))
 
 	mux.HandleFunc("/cms", routeRoot(h))
@@ -21,7 +21,7 @@ func RegisterCMSRoutes(mux *http.ServeMux, h handler.Handler) {
 	mux.HandleFunc("/cms/files", routeFiles(h))
 }
 
-func routeStatic(h handler.Handler) http.HandlerFunc {
+func routeStatic(h *handler.Handler) http.HandlerFunc {
 	cssStyles, _ := os.ReadFile("./static/css/styles.css")
 	cssBlocks, _ := os.ReadFile("./static/css/blocks.css")
 	jsDOM, _ := os.ReadFile("./static/js/dom.js")
@@ -43,7 +43,7 @@ func routeStatic(h handler.Handler) http.HandlerFunc {
 	}
 }
 
-func routeRoot(h handler.Handler) http.HandlerFunc {
+func routeRoot(h *handler.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		templ, err := template.ParseFiles(
 			h.TemplatesPath+"/cms/root.html",
@@ -66,7 +66,7 @@ func routeRoot(h handler.Handler) http.HandlerFunc {
 	}
 }
 
-func routeEditor(h handler.Handler) http.HandlerFunc {
+func routeEditor(h *handler.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		status := r.URL.Query().Get("status")
 		page := r.URL.Query().Get("page")
@@ -98,7 +98,7 @@ func routeEditor(h handler.Handler) http.HandlerFunc {
 		pageBlocks := make([]blocks.FormData, 0)
 
 		if page != "" {
-			route, err := h.Router.GetRoute(page)
+			route, err := h.GetPage(page)
 			if err != nil {
 				fmt.Println(err)
 
@@ -161,7 +161,7 @@ func routeEditor(h handler.Handler) http.HandlerFunc {
 	}
 }
 
-func routePages(h handler.Handler) http.HandlerFunc {
+func routePages(h *handler.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		status := r.URL.Query().Get("status")
 
@@ -188,7 +188,7 @@ func routePages(h handler.Handler) http.HandlerFunc {
 
 		err = templ.Execute(w, map[string]any{
 			"Message": message,
-			"Routes":  h.Router.Store,
+			"Pages":   h.Pages,
 		})
 		if err != nil {
 			fmt.Println(err)
@@ -197,7 +197,7 @@ func routePages(h handler.Handler) http.HandlerFunc {
 	}
 }
 
-func routeProfile(h handler.Handler) http.HandlerFunc {
+func routeProfile(h *handler.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		templ, err := template.ParseFiles(
 			h.TemplatesPath+"/cms/profile.html",
@@ -220,7 +220,7 @@ func routeProfile(h handler.Handler) http.HandlerFunc {
 	}
 }
 
-func routeFiles(h handler.Handler) http.HandlerFunc {
+func routeFiles(h *handler.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		templ, err := template.ParseFiles(
 			h.TemplatesPath+"/cms/files.html",

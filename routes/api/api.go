@@ -11,18 +11,17 @@ import (
 
 	"github.com/Fluffy-Bean/cms/internal/blocks"
 	"github.com/Fluffy-Bean/cms/internal/handler"
-	"github.com/Fluffy-Bean/cms/internal/router"
 	"github.com/google/uuid"
 )
 
-func RegisterAPIRoutes(mux *http.ServeMux, h handler.Handler) {
+func RegisterAPIRoutes(mux *http.ServeMux, h *handler.Handler) {
 	mux.HandleFunc("/api/v1/page:create", routePageCreate(h))
 	mux.HandleFunc("/api/v1/page:delete", routePageDelete(h))
 
 	mux.HandleFunc("/api/v1/blocks:available", routeBlocksAvailable(h))
 }
 
-func routePageCreate(h handler.Handler) http.HandlerFunc {
+func routePageCreate(h *handler.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		err := r.ParseForm()
 		if err != nil {
@@ -32,12 +31,26 @@ func routePageCreate(h handler.Handler) http.HandlerFunc {
 			return
 		}
 
-		pageID := r.URL.Query().Get("id")
+		if strings.TrimSpace(r.Form.Get("core.page_url")) == "" {
+			fmt.Println("missing url")
+			http.Redirect(w, r, "/cms/editor?status=failure", http.StatusFound)
 
-		var route router.Route
-		route, err = h.Router.GetRoute(pageID)
-		if err != nil {
-			route, err = h.Router.NewRoute()
+			return
+		}
+
+		ID := r.URL.Query().Get("id")
+
+		var page handler.Page
+		if ID != "" {
+			page, err = h.GetPage(ID)
+			if err != nil {
+				fmt.Println(err)
+				http.Redirect(w, r, "/cms/editor?status=failure", http.StatusFound)
+
+				return
+			}
+		} else {
+			page, err = h.NewPage()
 			if err != nil {
 				fmt.Println(err)
 				http.Redirect(w, r, "/cms/editor?status=failure", http.StatusFound)
@@ -46,19 +59,12 @@ func routePageCreate(h handler.Handler) http.HandlerFunc {
 			}
 		}
 
-		route.Path = strings.TrimSpace(r.Form.Get("core.page_url"))
-		route.Meta.Title = strings.TrimSpace(r.Form.Get("core.page_title"))
-		route.Meta.Description = strings.TrimSpace(r.Form.Get("core.page_description"))
+		page.Path = strings.TrimSpace(r.Form.Get("core.page_url"))
+		page.Meta.Title = strings.TrimSpace(r.Form.Get("core.page_title"))
+		page.Meta.Description = strings.TrimSpace(r.Form.Get("core.page_description"))
 
-		if route.Path == "" {
-			fmt.Println("missing url")
-			http.Redirect(w, r, "/cms/editor?status=failure", http.StatusFound)
-
-			return
-		}
-
-		index := 0
-		formData := map[string]map[string]string{}
+		blockIndex := 0
+		blockFormData := map[string]map[string]string{}
 		// ID:
 		//   Index: "0"
 		//   Field: "Value"
@@ -82,33 +88,29 @@ func routePageCreate(h handler.Handler) http.HandlerFunc {
 			// 1 - ID
 			// 2 - Struct Field
 
-			if _, exists := formData[fieldEntries[1]]; !exists {
-				formData[fieldEntries[1]] = map[string]string{
+			if _, exists := blockFormData[fieldEntries[1]]; !exists {
+				blockFormData[fieldEntries[1]] = map[string]string{
 					// Should somehow avoid this...
-					"Index": fmt.Sprintf("%d", index),
+					"Index": fmt.Sprintf("%d", blockIndex),
 				}
 
-				index += 1
+				blockIndex += 1
 			}
 
-			formData[fieldEntries[1]][fieldEntries[2]] = value[0]
+			blockFormData[fieldEntries[1]][fieldEntries[2]] = value[0]
 		}
 
-		pageHTML := make([]string, len(formData))
-		pageBlocks := make([]blocks.Handle, len(formData))
-		for id, data := range formData {
-			_index, ok := data["Index"]
+		pageHTML := make([]string, blockIndex)
+		pageBlocks := make([]blocks.Handle, blockIndex)
+		for blockID, formData := range blockFormData {
+			_index, ok := formData["Index"]
 			if !ok {
-				continue
+				fmt.Println(err)
+				http.Redirect(w, r, "/cms/editor?status=failure", http.StatusFound)
+
+				return
 			}
 			index, err := strconv.Atoi(_index)
-			if err != nil {
-				fmt.Println(err)
-
-				continue
-			}
-
-			block, err := h.Blocks.GetBlock(id)
 			if err != nil {
 				fmt.Println(err)
 				http.Redirect(w, r, "/cms/editor?status=failure", http.StatusFound)
@@ -116,11 +118,20 @@ func routePageCreate(h handler.Handler) http.HandlerFunc {
 				return
 			}
 
-			block, err = h.Blocks.ParseFormIntoBlock(data, block)
+			block, err := h.Blocks.GetBlock(blockID)
 			if err != nil {
 				fmt.Println(err)
+				http.Redirect(w, r, "/cms/editor?status=failure", http.StatusFound)
 
-				continue
+				return
+			}
+
+			block, err = h.Blocks.ParseFormIntoBlock(formData, block)
+			if err != nil {
+				fmt.Println(err)
+				http.Redirect(w, r, "/cms/editor?status=failure", http.StatusFound)
+
+				return
 			}
 
 			html := h.Blocks.Render(block)
@@ -129,8 +140,8 @@ func routePageCreate(h handler.Handler) http.HandlerFunc {
 			pageBlocks = slices.Insert(pageBlocks, index, block)
 		}
 
-		if route.TemplateID != "" {
-			err = os.Remove(h.DataPath + "/routes/" + route.TemplateID)
+		if page.TemplateID != "" {
+			err = os.Remove(h.DataPath + "/pages/" + page.TemplateID)
 			if err != nil {
 				fmt.Println(err)
 				http.Redirect(w, r, "/cms/pages?status=failure", http.StatusFound)
@@ -141,7 +152,7 @@ func routePageCreate(h handler.Handler) http.HandlerFunc {
 
 		newTemplateID := uuid.New().String() + ".html"
 
-		templateFile, err := os.Create(h.DataPath + "/routes/" + newTemplateID)
+		templateFile, err := os.Create(h.DataPath + "/pages/" + newTemplateID)
 		if err != nil {
 			fmt.Println(err)
 			http.Redirect(w, r, "/cms/editor?status=failure", http.StatusFound)
@@ -158,8 +169,8 @@ func routePageCreate(h handler.Handler) http.HandlerFunc {
 		}
 
 		err = templ.Execute(templateFile, map[string]any{
-			"Title":       route.Meta.Title,
-			"Description": route.Meta.Description,
+			"Title":       page.Meta.Title,
+			"Description": page.Meta.Description,
 			"Blocks":      pageHTML,
 		})
 		if err != nil {
@@ -169,10 +180,10 @@ func routePageCreate(h handler.Handler) http.HandlerFunc {
 			return
 		}
 
-		route.TemplateID = newTemplateID
-		route.Blocks = pageBlocks
+		page.TemplateID = newTemplateID
+		page.Blocks = pageBlocks
 
-		err = h.Router.UpdateRoute(route)
+		err = h.UpdatePage(page)
 		if err != nil {
 			fmt.Println(err)
 			http.Redirect(w, r, "/cms/editor?status=failure", http.StatusFound)
@@ -184,34 +195,33 @@ func routePageCreate(h handler.Handler) http.HandlerFunc {
 	}
 }
 
-func routePageDelete(h handler.Handler) http.HandlerFunc {
+func routePageDelete(h *handler.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		pageURL := r.URL.Query().Get("page")
 
-		page, err := h.Router.GetRoute(pageURL)
+		page, err := h.GetPage(pageURL)
 		if err != nil {
 			http.NotFound(w, r)
 
 			return
 		}
 
-		err = os.Remove(h.DataPath + "/routes/" + page.TemplateID)
+		err = os.Remove(h.DataPath + "/pages/" + page.TemplateID)
 		if err != nil {
 			fmt.Println(err)
-
 			http.Redirect(w, r, "/cms/pages?status=failure", http.StatusFound)
 
 			return
 		}
 
-		h.Router.DeleteRoute(page)
+		h.DeletePage(page)
 
 		http.Redirect(w, r, "/cms/pages?status=success", http.StatusFound)
 	}
 }
 
 // Its like 0020 and I cant be asked to get this working currently...
-func routeBlocksAvailable(h handler.Handler) http.HandlerFunc {
+func routeBlocksAvailable(h *handler.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		//var form []blocks.FormData
 		//for _, block := range h.Blocks.GetRegisteredBlocksIDs() {
