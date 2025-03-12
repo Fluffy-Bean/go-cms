@@ -42,7 +42,7 @@
 
     <div id="editor-blocks">
         {{range .Blocks}}
-            <div class="form__plugin" data-index="{{.Index}}" data-id="{{.ID}}">
+            <div class="form__plugin" data-id="{{.ID}}">
                 <div class="form__plugin__controls">
                     <button>
                         <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
@@ -58,14 +58,12 @@
                     </button>
                 </div>
                 <div class="form__plugin__data">
-                    <p style="font-size: 14px; margin-bottom: 16px;">{{.ID}}</p>
+                    <p style="font-size: 14px; margin-bottom: 16px;">{{.Name}}</p>
 
-                    <input type="hidden" name="block.{{.Index}}.ID" value="{{.ID}}"/>
-
-                    {{$index := .Index}}
+                    {{$id := .ID}}
                     {{range .Fields}}
                         <input
-                            name="block.{{$index}}.{{.Label}}"
+                            name="block.{{$id}}.{{.Label}}"
                             placeholder="{{.Label}}"
                             value="{{.Value}}"
                             {{if eq .Kind "string" }}type="text"{{end}}
@@ -78,9 +76,4 @@
         {{end}}
     </div>
 </form>
-
-<hr class="divider">
-
-<div class="editor__add-buttons">
-</div>
 {{end}}

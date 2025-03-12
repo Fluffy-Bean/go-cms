@@ -15,10 +15,7 @@ type Route struct {
 		Title       string
 		Description string
 	}
-	Blocks []struct {
-		ID    string
-		Block blocks.Block
-	}
+	Blocks []blocks.Handle
 }
 
 type Router struct {
@@ -31,7 +28,7 @@ func New() Router {
 	}
 }
 
-func (router *Router) NewRoute() (Route, error) {
+func (router Router) NewRoute() (Route, error) {
 	id := uuid.New().String()
 
 	router.Store[id] = Route{
@@ -41,7 +38,7 @@ func (router *Router) NewRoute() (Route, error) {
 	return router.Store[id], nil
 }
 
-func (router *Router) UpdateRoute(route Route) error {
+func (router Router) UpdateRoute(route Route) error {
 	if _, ok := router.Store[route.ID]; !ok {
 		return errors.New("cannot find route")
 	}
@@ -57,7 +54,7 @@ func (router *Router) UpdateRoute(route Route) error {
 	return nil
 }
 
-func (router *Router) GetRoute(pathOrID string) (Route, error) {
+func (router Router) GetRoute(pathOrID string) (Route, error) {
 	if route, ok := router.Store[pathOrID]; ok {
 		return route, nil
 	}
@@ -71,7 +68,7 @@ func (router *Router) GetRoute(pathOrID string) (Route, error) {
 	return Route{}, errors.New("route not found")
 }
 
-func (router *Router) DeleteRoute(route Route) error {
+func (router Router) DeleteRoute(route Route) error {
 	delete(router.Store, route.ID)
 
 	return nil

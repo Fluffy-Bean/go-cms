@@ -5,179 +5,154 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+
+	"github.com/google/uuid"
 )
 
 type Block interface {
 	Render() string
 }
 
+type Handle struct {
+	ID   string
+	Type string
+	Data Block
+}
+
+type FormField struct {
+	Label string
+	Value string
+	Kind  string
+}
+
 type FormData struct {
-	Index  int
 	ID     string
-	Fields []struct {
-		Label string
-		Kind  string
-		Value string
-	}
+	Name   string
+	Fields []FormField
 }
 
 type Blocks struct {
-	Store map[string]Block
+	Store   map[string]Block
+	Handles map[string]Handle
 }
 
 func New() Blocks {
 	return Blocks{
-		Store: map[string]Block{},
+		Store:   map[string]Block{},
+		Handles: map[string]Handle{},
 	}
 }
 
-func (b *Blocks) RegisterBlock(id string, block Block) error {
-	if _, ok := b.Store[id]; ok {
+func (b Blocks) RegisterBlock(name string, block Block) error {
+	if _, ok := b.Store[name]; ok {
 		return errors.New("block already exists")
 	}
 
-	b.Store[id] = block
+	b.Store[name] = block
 
 	return nil
 }
 
-func (b *Blocks) GetRegisteredBlocks() []string {
+func (b Blocks) GetRegisteredBlocksIDs() []string {
 	var blocks []string
+
 	for id := range b.Store {
 		blocks = append(blocks, id)
 	}
+
 	return blocks
 }
 
-func (b *Blocks) GetRegisteredBlock(id string) (Block, error) {
-	block, ok := b.Store[id]
+func (b Blocks) NewBlock(name string) (Handle, error) {
+	id := uuid.New().String()
+
+	block, ok := b.Store[name]
 	if !ok {
-		return nil, errors.New("block not found")
+		return Handle{}, errors.New("block does not exist")
 	}
 
-	return block, nil
+	b.Handles[id] = Handle{
+		ID:   id,
+		Type: name,
+		Data: block,
+	}
+
+	return b.Handles[id], nil
 }
 
-func (b *Blocks) GetFormDataByID(id string) (FormData, error) {
-	form := FormData{
-		Index: 0,
-		ID:    id,
-		Fields: make([]struct {
-			Label string
-			Kind  string
-			Value string
-		}, 0),
+func (b Blocks) UpdateBlock(handle Handle) error {
+	if _, ok := b.Handles[handle.ID]; !ok {
+		return errors.New("cannot find block")
 	}
 
-	block, ok := b.Store[id]
+	b.Handles[handle.ID] = handle
+
+	return nil
+}
+
+func (b Blocks) GetBlock(id string) (Handle, error) {
+	handle, ok := b.Handles[id]
 	if !ok {
-		return form, errors.New("block not found")
+		return Handle{}, errors.New("block not found")
 	}
 
-	val := reflect.ValueOf(block)
+	return handle, nil
+}
+
+func (b Blocks) DeleteBlock(handle Handle) error {
+	delete(b.Handles, handle.ID)
+
+	return nil
+}
+
+func (b Blocks) GetFormData(handle Handle) (FormData, error) {
+	if _, ok := b.Handles[handle.ID]; !ok {
+		return FormData{}, errors.New("block not found")
+	}
+
+	form := FormData{
+		ID:     handle.ID,
+		Name:   handle.Type,
+		Fields: []FormField{},
+	}
+
+	val := reflect.ValueOf(handle.Data)
 
 	if val.Kind() != reflect.Struct {
 		return form, errors.New("block is not a struct")
 	}
 
 	for i := range val.NumField() {
-		label := val.Type().Field(i).Name
-		kind := ""
-		value := ""
+		field := FormField{
+			Label: val.Type().Field(i).Name,
+			Kind:  "",
+			Value: val.Field(i).String(),
+		}
 
 		switch val.Field(i).Kind() {
 		case reflect.String:
-			kind = "string"
+			field.Kind = "string"
 		case reflect.Int:
-			kind = "number"
+			field.Kind = "number"
 		case reflect.Bool:
-			kind = "bool"
+			field.Kind = "bool"
 		default:
-			fmt.Printf("Ignoring unsupported type %d on %s\n", val.Field(i).Kind(), label)
+			fmt.Printf("Ignoring unsupported type %d on %s\n", val.Field(i).Kind(), field.Label)
 			continue
 		}
 
-		form.Fields = append(form.Fields, struct {
-			Label string
-			Kind  string
-			Value string
-		}{
-			Label: label,
-			Kind:  kind,
-			Value: value,
-		})
+		form.Fields = append(form.Fields, field)
 	}
 
 	return form, nil
 }
 
-func (b *Blocks) GetFormDataByType(block Block) (FormData, error) {
-	form := FormData{
-		Index: 0,
-		ID:    "",
-		Fields: make([]struct {
-			Label string
-			Kind  string
-			Value string
-		}, 0),
+func (b Blocks) ParseFormIntoBlock(fields map[string]string, handle Handle) (Handle, error) {
+	if _, ok := b.Handles[handle.ID]; !ok {
+		return Handle{}, errors.New("block not found")
 	}
 
-	if block == nil {
-		return form, fmt.Errorf("block is nil")
-	}
-
-	val := reflect.ValueOf(block)
-
-	if val.Kind() == reflect.Ptr {
-		if val.IsNil() {
-			return form, fmt.Errorf("block pointer is nil")
-		}
-
-		val = val.Elem()
-	}
-
-	if val.Kind() != reflect.Struct {
-		return form, fmt.Errorf("block is not a struct or pointer to struct, got %s", val.Kind())
-	}
-
-	for i := range val.NumField() {
-		label := val.Type().Field(i).Name
-		kind := ""
-		value := val.Field(i).String()
-
-		switch val.Field(i).Kind() {
-		case reflect.String:
-			kind = "string"
-		case reflect.Int:
-			kind = "number"
-		case reflect.Bool:
-			kind = "bool"
-		default:
-			fmt.Printf("Ignoring unsupported type %d on %s\n", val.Field(i).Kind(), label)
-			continue
-		}
-
-		form.Fields = append(form.Fields, struct {
-			Label string
-			Kind  string
-			Value string
-		}{
-			Label: label,
-			Kind:  kind,
-			Value: value,
-		})
-	}
-
-	return form, nil
-}
-
-func (b *Blocks) ParseForm(id string, fields map[string]string) (Block, error) {
-	formBlock, err := b.GetRegisteredBlock(id)
-	if err != nil {
-		return nil, err
-	}
-
-	blockType := reflect.TypeOf(formBlock)
+	blockType := reflect.TypeOf(handle.Data)
 	blockValue := reflect.New(blockType).Elem()
 	for i := range blockValue.NumField() {
 		label := blockValue.Type().Field(i).Name
@@ -215,11 +190,21 @@ func (b *Blocks) ParseForm(id string, fields map[string]string) (Block, error) {
 			}
 		default:
 			fmt.Printf("Ignoring unsupported type %d on %s\n", blockValue.Field(i).Kind(), label)
-			continue
 		}
 	}
 
 	result := reflect.New(blockType).Elem()
 	result.Set(blockValue)
-	return result.Addr().Interface().(Block), nil
+
+	handle.Data = result.Addr().Elem().Interface().(Block)
+
+	b.Handles[handle.ID] = handle
+
+	return handle, nil
+}
+
+func (b Blocks) Render(handle Handle) string {
+	html := handle.Data.Render()
+
+	return html
 }

@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -34,47 +33,6 @@ func routePageCreate(h handler.Handler) http.HandlerFunc {
 		}
 
 		pageID := r.URL.Query().Get("id")
-		pageURL := ""
-		pageTitle := ""
-		pageDescription := ""
-		pageFormData := map[string]map[string]string{}
-
-		for field, data := range r.Form {
-			switch field {
-			case "core.page_url":
-				pageURL = strings.TrimSpace(data[0])
-			case "core.page_title":
-				pageTitle = strings.TrimSpace(data[0])
-			case "core.page_description":
-				pageDescription = strings.TrimSpace(data[0])
-			default:
-				if !strings.HasPrefix(field, "block.") {
-					continue
-				}
-
-				// 0 - Always "block"
-				// 1 - ID
-				// 2 - Type's Field
-				fieldEntries := strings.Split(field, ".")
-
-				if len(fieldEntries) != 3 {
-					continue
-				}
-
-				if _, exists := pageFormData[fieldEntries[1]]; !exists {
-					pageFormData[fieldEntries[1]] = map[string]string{}
-				}
-
-				pageFormData[fieldEntries[1]][fieldEntries[2]] = data[0]
-			}
-		}
-
-		if pageURL == "" {
-			fmt.Println("missing url")
-			http.Redirect(w, r, "/cms/editor?status=failure", http.StatusFound)
-
-			return
-		}
 
 		var route router.Route
 		route, err = h.Router.GetRoute(pageID)
@@ -88,44 +46,87 @@ func routePageCreate(h handler.Handler) http.HandlerFunc {
 			}
 		}
 
-		route.Path = pageURL
-		route.Meta.Title = pageTitle
-		route.Meta.Description = pageDescription
+		route.Path = strings.TrimSpace(r.Form.Get("core.page_url"))
+		route.Meta.Title = strings.TrimSpace(r.Form.Get("core.page_title"))
+		route.Meta.Description = strings.TrimSpace(r.Form.Get("core.page_description"))
 
-		pageHTML := make([]string, len(pageFormData))
-		pageBlocks := make([]struct {
-			ID    string
-			Block blocks.Block
-		}, len(pageFormData))
-		for i, data := range pageFormData {
-			index, err := strconv.Atoi(i)
-			if err != nil {
-				fmt.Println(err)
+		if route.Path == "" {
+			fmt.Println("missing url")
+			http.Redirect(w, r, "/cms/editor?status=failure", http.StatusFound)
 
+			return
+		}
+
+		index := 0
+		formData := map[string]map[string]string{}
+		// ID:
+		//   Index: "0"
+		//   Field: "Value"
+		//   Field: "Value"
+		//
+		// ID:
+		//   Index: "1"
+		//   Field: "Value"
+		//   Field: "Value"
+		//
+		for field, value := range r.Form {
+			if !strings.HasPrefix(field, "block.") {
 				continue
 			}
-			id, ok := data["ID"]
+
+			fieldEntries := strings.Split(field, ".")
+			if len(fieldEntries) != 3 {
+				continue
+			}
+
+			// 1 - ID
+			// 2 - Struct Field
+
+			if _, exists := formData[fieldEntries[1]]; !exists {
+				formData[fieldEntries[1]] = map[string]string{
+					// Should somehow avoid this...
+					"Index": fmt.Sprintf("%d", index),
+				}
+
+				index += 1
+			}
+
+			formData[fieldEntries[1]][fieldEntries[2]] = value[0]
+		}
+
+		pageHTML := make([]string, len(formData))
+		pageBlocks := make([]blocks.Handle, len(formData))
+		for id, data := range formData {
+			_index, ok := data["Index"]
 			if !ok {
 				continue
 			}
-
-			block, err := h.Blocks.ParseForm(id, data)
+			index, err := strconv.Atoi(_index)
 			if err != nil {
 				fmt.Println(err)
 
 				continue
 			}
 
-			html := block.Render()
+			block, err := h.Blocks.GetBlock(id)
+			if err != nil {
+				fmt.Println(err)
+				http.Redirect(w, r, "/cms/editor?status=failure", http.StatusFound)
+
+				return
+			}
+
+			block, err = h.Blocks.ParseFormIntoBlock(data, block)
+			if err != nil {
+				fmt.Println(err)
+
+				continue
+			}
+
+			html := h.Blocks.Render(block)
 
 			pageHTML = slices.Insert(pageHTML, index, html)
-			pageBlocks = slices.Insert(pageBlocks, index, struct {
-				ID    string
-				Block blocks.Block
-			}{
-				ID:    id,
-				Block: block,
-			})
+			pageBlocks = slices.Insert(pageBlocks, index, block)
 		}
 
 		if route.TemplateID != "" {
@@ -157,8 +158,8 @@ func routePageCreate(h handler.Handler) http.HandlerFunc {
 		}
 
 		err = templ.Execute(templateFile, map[string]any{
-			"Title":       pageTitle,
-			"Description": pageDescription,
+			"Title":       route.Meta.Title,
+			"Description": route.Meta.Description,
 			"Blocks":      pageHTML,
 		})
 		if err != nil {
@@ -209,30 +210,31 @@ func routePageDelete(h handler.Handler) http.HandlerFunc {
 	}
 }
 
+// Its like 0020 and I cant be asked to get this working currently...
 func routeBlocksAvailable(h handler.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var form []blocks.FormData
-		for _, block := range h.Blocks.GetRegisteredBlocks() {
-			formData, err := h.Blocks.GetFormDataByID(block)
-			if err != nil {
-				fmt.Println(err)
-
-				continue
-			}
-
-			form = append(form, formData)
-		}
-
-		bytes, err := json.Marshal(form)
-		if err != nil {
-			fmt.Println(err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-
-		w.Write(bytes)
+		//var form []blocks.FormData
+		//for _, block := range h.Blocks.GetRegisteredBlocksIDs() {
+		//    formData, err := h.Blocks.GetFormData(block)
+		//    if err != nil {
+		//        fmt.Println(err)
+		//
+		//        continue
+		//    }
+		//
+		//    form = append(form, formData)
+		//}
+		//
+		//bytes, err := json.Marshal(form)
+		//if err != nil {
+		//    fmt.Println(err)
+		//    http.Error(w, err.Error(), http.StatusInternalServerError)
+		//
+		//    return
+		//}
+		//
+		//w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		//
+		//w.Write(bytes)
 	}
 }

@@ -112,30 +112,32 @@ func routeEditor(h handler.Handler) http.HandlerFunc {
 			pageTitle = route.Meta.Title
 			pageDescription = route.Meta.Description
 
-			for index, block := range route.Blocks {
-				formData, err := h.Blocks.GetFormDataByType(block.Block)
+			for _, block := range route.Blocks {
+				formData, err := h.Blocks.GetFormData(block)
 				if err != nil {
 					fmt.Println(err)
 
 					continue
 				}
-				formData.Index = index
-				formData.ID = block.ID
-
 				pageBlocks = append(pageBlocks, formData)
 			}
 		}
 
-		indexOffset := len(pageBlocks)
 		if slots != "" {
-			for index, block := range strings.Split(slots, ",") {
-				formData, err := h.Blocks.GetFormDataByID(block)
+			for _, id := range strings.Split(slots, ",") {
+				block, err := h.Blocks.NewBlock(id)
 				if err != nil {
 					fmt.Println(err)
 
 					continue
 				}
-				formData.Index = index + indexOffset
+
+				formData, err := h.Blocks.GetFormData(block)
+				if err != nil {
+					fmt.Println(err)
+
+					continue
+				}
 
 				pageBlocks = append(pageBlocks, formData)
 			}
